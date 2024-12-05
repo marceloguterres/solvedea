@@ -1,126 +1,108 @@
-import numpy as np
 from scipy.optimize import linprog
 import pandas as pd
 
-def get_ccr_output_mult(data_dea, inputs, outputs):
+def get_ccr_output_mult(data, dmu_col, inputs, outputs):
     """
-    DEA CCR multiplicadores orientado a outputs, com impressão do PPL completo
-    """
-    n_dmus = len(data_dea)
-    n_inputs = len(inputs)
-    n_outputs = len(outputs)
-    resultados = []
+    Implementa o modelo CCR DEA orientado a output com retorno de DataFrame formatado.
     
-    for idx, dmu_alvo in data_dea.iterrows():
-        print("\n" + "="*80)
-        print(f"PROBLEMA DE PROGRAMAÇÃO LINEAR - DMU {dmu_alvo['dmu']}")
-        print("="*80)
+    Parâmetros:
+    data (DataFrame): DataFrame contendo os dados das DMUs
+    inputs (list): Lista com os nomes das colunas dos inputs
+    outputs (list): Lista com os nomes das colunas dos outputs
+    dmu_col (str): Nome da coluna que contém os identificadores das DMUs
+    
+    Implementa o modelo CCR DEA orientado a output conforme a formulação:
+    max z = Σ u_jm * y_jm
+    sujeito a:
+    Σ v_im * x_im = 1 (normalização)
+    Σ u_jm * y_jn - Σ v_im * x_in ≤ 0 (para cada DMU n)
+    u_jm, v_im ≥ ε
+    
+    Retorna os resultados incluindo:
+    - Nome da DMU (identificador original da DMU)
+    - phi (medida de eficiência - quanto maior, menos eficiente)
+    - Et (eficiência técnica = 1/phi - quanto mais próximo de 1, mais eficiente)
+    - Multiplicadores u (outputs) e v (inputs)
+    """
+    num_dmus = len(data)
+    num_inputs = len(inputs)
+    num_outputs = len(outputs)
+    
+    results = []
+    
+    for m in range(num_dmus):
+        dmu_atual = data.iloc[m]
         
-        # Matriz de restrições para todas as DMUs
+        # Configuração do problema permanece a mesma
+        num_vars = num_outputs + num_inputs
+        
+        # Função objetivo: maximizar Σ u_jm * y_jm (multiplicadores u para outputs)
+        c = []
+        for output_col in outputs:
+            c.append(-dmu_atual[output_col])
+        c.extend([0] * num_inputs)
+        
+        # Restrições
+        A_eq = []
+        b_eq = []
         A_ub = []
         b_ub = []
         
-        # Construir e mostrar a função objetivo
-        print("\nFUNÇÃO OBJETIVO:")
-        fo_termos = []
-        for out in outputs:
-            fo_termos.append(f"u_{out}*{dmu_alvo[out]:.4f}")
-        print(f"max θ = {' + '.join(fo_termos)}")
+        # Restrição de normalização (usando multiplicadores v para inputs)
+        norm_constraint = [0] * num_outputs
+        for input_col in inputs:
+            norm_constraint.append(dmu_atual[input_col])
+        A_eq.append(norm_constraint)
+        b_eq.append(1)
         
-        print("\nSUJEITO A:")
-        
-        # Mostrar restrição de normalização
-        norm_termos = []
-        for inp in inputs:
-            norm_termos.append(f"v_{inp}*{dmu_alvo[inp]:.4f}")
-        print(f"\n1. {' + '.join(norm_termos)} = 1")
-        
-        print("\n2. Restrições de eficiência para cada DMU:")
-        # Construir restrições para cada DMU
-        for _, dmu in data_dea.iterrows():
-            # Coeficientes dos inputs e outputs
-            input_terms = []
-            output_terms = []
+        # Restrições de eficiência
+        for n in range(num_dmus):
+            dmu_n = data.iloc[n]
+            efficiency_constraint = []
             
-            # Termos dos outputs
-            for out in outputs:
-                output_terms.append(f"u_{out}*{dmu[out]:.4f}")
+            for output_col in outputs:
+                efficiency_constraint.append(dmu_n[output_col])
+            for input_col in inputs:
+                efficiency_constraint.append(-dmu_n[input_col])
                 
-            # Termos dos inputs
-            for inp in inputs:
-                input_terms.append(f"v_{inp}*{dmu[inp]:.4f}")
-            
-            # Mostrar restrição completa
-            print(f"   DMU {dmu['dmu']}: {' + '.join(output_terms)} - ({' + '.join(input_terms)}) ≤ 0")
-            
-            # Adicionar à matriz de restrições
-            input_coef = [-dmu[inp] for inp in inputs]
-            output_coef = [dmu[out] for out in outputs]
-            A_ub.append(input_coef + output_coef)
+            A_ub.append(efficiency_constraint)
             b_ub.append(0)
+        
+        # Restrições de não-negatividade
+        epsilon = 1e-6
+        bounds = [(epsilon, None)] * num_vars
+        
+        # Resolvendo o problema
+        result = linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, 
+                        bounds=bounds, method='highs')
+        
+        if result.success:
+            # Calculando phi e Et
+            z_m = -result.fun
+            phi = 1/z_m if z_m != 0 else float('inf')
+            et = z_m if z_m != 0 else 0  # Et = 1/phi
             
-        # Restrição de normalização dos inputs
-        A_eq = [[dmu_alvo[inp] for inp in inputs] + [0]*n_outputs]
-        b_eq = [1]
-        
-        # Função objetivo
-        c = [0]*n_inputs + [-dmu_alvo[out] for out in outputs]
-        
-        print("\n3. Restrições de não-negatividade:")
-        for inp in inputs:
-            print(f"   v_{inp} ≥ 0.000001")
-        for out in outputs:
-            print(f"   u_{out} ≥ 0.000001")
-        
-        print("\nMATRIZES DO PROBLEMA:")
-        print(f"A_ub shape: {np.array(A_ub).shape}")
-        print(f"b_ub shape: {np.array(b_ub).shape}")
-        print(f"A_eq shape: {np.array(A_eq).shape}")
-        print(f"b_eq shape: {np.array(b_eq).shape}")
-        print(f"c shape: {np.array(c).shape}")
-        
-        # Resolver
-        res = linprog(
-            c=c,
-            A_ub=np.array(A_ub),
-            b_ub=np.array(b_ub),
-            A_eq=np.array(A_eq),
-            b_eq=np.array(b_eq),
-            bounds=[(0.000001, None)]*(n_inputs + n_outputs),
-            method='highs'
-        )
-        
-        if res.success:
-            # Separar multiplicadores
-            v = res.x[:n_inputs]
-            u = res.x[n_inputs:]
+            # Extraindo os multiplicadores (u para outputs, v para inputs)
+            u_values = result.x[:num_outputs]  # Multiplicadores u (outputs)
+            v_values = result.x[num_outputs:]  # Multiplicadores v (inputs)
             
-            eficiencia = -res.fun
-            
-            resultado = {
-                'DMU': dmu_alvo['dmu'],
-                'Eficiência': eficiencia
+            dmu_result = {
+                'DMU': dmu_atual[dmu_col],
+                'Phi': phi,
+                'Et (1/Phi)': et,
+                'Status': 'Eficiente' if abs(et - 1) < 1e-5 else 'Ineficiente'
             }
             
-            # Adicionar multiplicadores
-            for i, inp in enumerate(inputs):
-                resultado[f'v_{inp}'] = v[i]
-            for i, out in enumerate(outputs):
-                resultado[f'u_{out}'] = u[i]
+            # Salvando os multiplicadores dos outputs (u)
+            for j, output_col in enumerate(outputs):
+                dmu_result[f'u_{output_col}'] = u_values[j]
             
-            print("\nSOLUÇÃO ÓTIMA:")
-            print(f"Eficiência: {eficiencia:.6f}")
-            print("Multiplicadores dos inputs:", {inp: f"{v[i]:.6f}" for i, inp in enumerate(inputs)})
-            print("Multiplicadores dos outputs:", {out: f"{u[i]:.6f}" for i, out in enumerate(outputs)})
-                
+            # Salvando os multiplicadores dos inputs (v)
+            for i, input_col in enumerate(inputs):
+                dmu_result[f'v_{input_col}'] = v_values[i]
+            
+            results.append(dmu_result)
         else:
-            resultado = {
-                'DMU': dmu_alvo['dmu'],
-                'Eficiência': None
-            }
-            print(f"\nERRO: Não foi possível encontrar solução ótima para DMU {dmu_alvo['dmu']}!")
-            
-        resultados.append(resultado)
-        print("="*80 + "\n")
+            print(f"Erro ao resolver para DMU {dmu_atual[dmu_col]}: {result.message}")
     
-    return pd.DataFrame(resultados)
+    return pd.DataFrame(results)
