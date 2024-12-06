@@ -78,12 +78,7 @@ with tabs[0]:
     output_vars = [y.strip() for y in output_vars_text.split(',')] if output_vars_text else []
     selected_dmus = None if not dmus_vars_text else [x.strip() for x in dmus_vars_text.split(',')]
 
-    # Exibir configurações
-    st.subheader("Selected Parameters:")
-    st.write("- Model:", selectbox_model)
-    st.write("- DMUs:", "All" if selected_dmus is None else ", ".join(map(str, selected_dmus)))
-    st.write("- Inputs:", ", ".join(input_vars) if input_vars else "None")
-    st.write("- Outputs:", ", ".join(output_vars) if output_vars else "None")
+
 
     # Processamento do arquivo
     if uploaded_file is not None:
