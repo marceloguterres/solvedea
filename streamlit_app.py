@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from get_data_st_dea import get_data_st_dea
 from get_ccr_output_mult import get_ccr_output_mult
+from get_ccr_input_mult import get_ccr_input_mult
 
 st.set_page_config(
     page_title="DEA Analysis",
@@ -11,8 +12,6 @@ st.set_page_config(
 
 # Criação das abas
 tabs = st.tabs(["DEA Analysis", "Developers"])
-
-
 
 # Aba "DEA Analysis"
 with tabs[0]:
@@ -36,11 +35,22 @@ with tabs[0]:
     if selectbox_model == "Model 1":
         st.markdown("""
         <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #0077b5; margin: 20px 0;'>
-            <h3 style='color: #0077b5; margin-bottom: 10px'>Model 1: CCR-O (Charnes, Cooper, and Rhodes - Output Oriented)</h3>
+            <h3 style='color: #0077b5; margin-bottom: 10px'>Model 1: CCR-O</h3>
             <p style='margin-bottom: 10px'><strong>Technical Specification:</strong></p>
             <ul style='list-style-type: none; padding-left: 0;'>
                 <li>• <strong>Returns to Scale:</strong> Constant Returns to Scale (CRS)</li>
                 <li>• <strong>Orientation:</strong> Output-oriented Multiplier Model</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    elif selectbox_model == "Model 2":
+        st.markdown("""
+        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #00b574; margin: 20px 0;'>
+            <h3 style='color: #00b574; margin-bottom: 10px'>Model 2: CCR-I</h3>
+            <p style='margin-bottom: 10px'><strong>Technical Specification:</strong></p>
+            <ul style='list-style-type: none; padding-left: 0;'>
+                <li>• <strong>Returns to Scale:</strong> Constant Returns to Scale (CRS)</li>
+                <li>• <strong>Orientation:</strong> Input-oriented Multiplier Model</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -102,7 +112,12 @@ with tabs[0]:
                     st.dataframe(data_dea)
 
                     try:
-                        resultados_dea = get_ccr_output_mult(data_dea, name_col_dmus_text, input_vars, output_vars)
+                        # Select the appropriate DEA model based on user selection
+                        if selectbox_model == "Model 1":
+                            resultados_dea = get_ccr_output_mult(data_dea, name_col_dmus_text, input_vars, output_vars)
+                        elif selectbox_model == "Model 2":
+                            resultados_dea = get_ccr_input_mult(data_dea, name_col_dmus_text, input_vars, output_vars)
+                        
                         if resultados_dea is not None:
                             st.write("### DEA Results:")
                             st.dataframe(resultados_dea)
@@ -112,8 +127,7 @@ with tabs[0]:
             st.error(f"Error: {e}")
     else:
         st.info("Please upload a file to begin the analysis.")
-        
-        
+
 # Aba "Developers"
 with tabs[1]:
     st.markdown("""
@@ -138,4 +152,3 @@ with tabs[1]:
             </div>
         </div>
     """, unsafe_allow_html=True)
-

@@ -1,6 +1,5 @@
 from scipy.optimize import linprog
 import pandas as pd
-
 def get_ccr_output_mult(data, dmu_col, inputs, outputs):
     """
     Implementa o modelo CCR DEA orientado a output com retorno de DataFrame formatado.
@@ -22,7 +21,7 @@ def get_ccr_output_mult(data, dmu_col, inputs, outputs):
     - Nome da DMU (identificador original da DMU)
     - phi (medida de eficiência - quanto maior, menos eficiente)
     - Et (eficiência técnica = 1/phi - quanto mais próximo de 1, mais eficiente)
-    - Multiplicadores u (outputs) e v (inputs)
+    - Multiplicadores v (inputs) e u (outputs)
     """
     num_dmus = len(data)
     num_inputs = len(inputs)
@@ -93,13 +92,13 @@ def get_ccr_output_mult(data, dmu_col, inputs, outputs):
                 'Status': 'Eficiente' if abs(et - 1) < 1e-5 else 'Ineficiente'
             }
             
-            # Salvando os multiplicadores dos outputs (u)
-            for j, output_col in enumerate(outputs):
-                dmu_result[f'u_{output_col}'] = u_values[j]
-            
-            # Salvando os multiplicadores dos inputs (v)
+            # Salvando os multiplicadores dos inputs primeiro (v)
             for i, input_col in enumerate(inputs):
                 dmu_result[f'v_{input_col}'] = v_values[i]
+                
+            # Salvando os multiplicadores dos outputs depois (u)
+            for j, output_col in enumerate(outputs):
+                dmu_result[f'u_{output_col}'] = u_values[j]
             
             results.append(dmu_result)
         else:
